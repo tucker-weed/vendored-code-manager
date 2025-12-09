@@ -48,5 +48,5 @@ cargo run -p vendored-code-manager -- revendor --sha <commit>
 
 ### Notes
 - There are no default repositories. If `third_party/` is empty, `init` requires at least one `--url`.
-- Paths are resolved relative to the repository root; use `--root <path>` if you need to override detection.
+- Paths are resolved relative to your current working directory (it searches upward for `third_party`, `pyproject.toml`, or `scripts/vendor_manager.py`); use `--root <path>` to override.
 - `diff` accepts `--force` to regenerate even when local and upstream SHAs match; `revendor` accepts `--force` to re-copy the same commit.

@@ -89,27 +89,34 @@ fn resolve_root(provided: Option<&Path>) -> Result<PathBuf> {
             .context("Failed to canonicalize provided --root path");
     }
 
-    let compiled_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("manifest dir always has a parent")
-        .to_path_buf();
-
-    if compiled_root.exists() {
-        return Ok(compiled_root);
-    }
-
     let cwd = std::env::current_dir().context("Failed to determine current directory")?;
     for anc in cwd.ancestors() {
-        if anc
-            .join("vendored-code-manager")
-            .join("Cargo.toml")
-            .exists()
+        if anc.join("third_party").exists()
+            || anc.join("pyproject.toml").exists()
+            || anc.join("scripts").join("vendor_manager.py").exists()
         {
             return Ok(anc.to_path_buf());
         }
     }
 
-    bail!("Unable to locate repository root. Pass --root <path> explicitly.");
+    let compiled_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("manifest dir always has a parent")
+        .to_path_buf();
+
+    if compiled_root.join("third_party").exists()
+        || compiled_root.join("pyproject.toml").exists()
+        || compiled_root
+            .join("scripts")
+            .join("vendor_manager.py")
+            .exists()
+    {
+        return Ok(compiled_root);
+    }
+
+    bail!(
+        "Unable to locate repository root from current directory; pass --root <path> explicitly."
+    );
 }
 
 fn build_repos(root: &Path) -> Vec<Repo> {
