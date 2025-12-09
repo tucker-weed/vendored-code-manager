@@ -484,12 +484,14 @@ fn parse_readme_meta(readme: &Path) -> Result<(Option<String>, Option<String>)> 
         if lower.starts_with("- upstream repository:") {
             upstream = line
                 .split_once(':')
-                .map(|(_, rest)| rest.trim().to_string());
+                .and_then(|(_, rest)| rest.split_whitespace().next())
+                .map(|s| s.to_string());
         }
         if lower.starts_with("- commit:") {
             sha = line
                 .split_once(':')
-                .map(|(_, rest)| rest.trim().to_string());
+                .and_then(|(_, rest)| rest.split_whitespace().next())
+                .map(|s| s.to_string());
         }
     }
 
@@ -531,16 +533,18 @@ fn git_rev_parse_head(repo_dir: &Path) -> Result<String> {
     )
 }
 
-fn git_fetch_ref(repo_dir: &Path, reference: &str) -> Result<()> {
-    run(Command::new("git")
-        .current_dir(repo_dir)
-        .args(["fetch", "--depth", "2000", "origin", reference]))
+fn git_fetch_refs(repo_dir: &Path, references: &[&str]) -> Result<()> {
+    let mut args = vec!["fetch", "--depth", "2000", "origin"];
+    args.extend(references.iter().copied());
+    run(Command::new("git").current_dir(repo_dir).args(args))
 }
 
 fn generate_diff(local_dir: &Path, remote_dir: &Path) -> Result<String> {
     let output = Command::new("diff")
         .args([
             "-ruN",
+            "--exclude=.git",
+            "--exclude=.git*",
             local_dir.to_string_lossy().as_ref(),
             remote_dir.to_string_lossy().as_ref(),
         ])
@@ -577,30 +581,36 @@ fn build_commit_log(
     local_sha: Option<&str>,
     remote_sha: &str,
 ) -> Result<Option<String>> {
-    // Ensure we have the local commit in the clone so the range is valid.
+    // Ensure both endpoints exist in the clone so the range is valid.
     if let Some(local) = local_sha {
-        if let Err(err) = git_fetch_ref(upstream_clone, local) {
+        if let Err(err) = git_fetch_refs(upstream_clone, &[local, remote_sha]) {
             eprintln!(
-                "[warn] failed to fetch local commit {} into temp clone: {}",
+                "[warn] failed to fetch commit {} into temp clone: {}",
                 local, err
             );
         }
     }
 
-    let range = match local_sha {
-        Some(local) => format!("{}..{}", local, remote_sha),
-        None => format!("{}", remote_sha),
-    };
-
-    let args = if local_sha.is_some() {
-        vec!["log", "--oneline", "--no-decorate", "--reverse", &range]
-    } else {
-        vec!["log", "--oneline", "--no-decorate", "-n", "50"]
+    let range = local_sha.map(|l| format!("{}..{}", l, remote_sha));
+    let args: Vec<&str> = match range.as_deref() {
+        Some(r) => vec!["log", "--oneline", "--no-decorate", "--reverse", r],
+        None => vec!["log", "--oneline", "--no-decorate", "-n", "50", remote_sha],
     };
 
     match run_capture(Command::new("git").current_dir(upstream_clone).args(args)) {
-        Ok(log) => Ok(Some(log)),
-        Err(_) => Ok(None),
+        Ok(log) => {
+            if log.trim().is_empty() {
+                if let Some(l) = local_sha {
+                    return Ok(Some(format!(
+                        "<no commits; local {} and remote {} are identical>",
+                        l, remote_sha
+                    )));
+                }
+                return Ok(Some("<no commits available>".to_string()));
+            }
+            Ok(Some(log))
+        }
+        Err(_) => Ok(Some("<unavailable>".to_string())),
     }
 }
 

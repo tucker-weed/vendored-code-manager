@@ -22,7 +22,7 @@ The binary will be placed in `~/.cargo/bin` (ensure that directory is on your `P
 
 ## Commands
 - `init --url <git-url> [--url <git-url> ...] [--sha <commit>]` – Clone provided repositories into `../third_party/` and write `README_UPSTREAM.md` for each. `--url` is required when no vendors exist yet; you can repeat it to add multiple repos. `--sha` pins all clones to a specific commit.
-- `diff [--force]` – Generate unified diffs between each local vendor and upstream `HEAD`, writing `../<repo>.diff` per project. Each diff file now includes a header with local/remote SHAs and the commit messages between them. Requires at least one vendored repo in `third_party/`.
+- `diff [--force]` – Generate unified diffs between each local vendor and upstream `HEAD`, writing `../<repo>.diff` per project. Each diff file includes a header with local/remote SHAs plus the commit messages between them (or last 50 upstream commits if the local SHA is unknown). `.git` directories are skipped. Requires at least one vendored repo in `third_party/`.
 - `revendor [--sha <commit>] [--force]` – Replace local vendors with the specified commit (or upstream `HEAD`) and refresh README metadata for all discovered vendors.
 - `status` – Report discovered third-party directories plus local vs upstream SHAs for each known repo.
 
